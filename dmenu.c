@@ -5,9 +5,13 @@
 #include <string.h>
 #include <strings.h>
 #include <unistd.h>
+#include <dirent.h>
+#include <errno.h>
 #include <X11/Xlib.h>
 #include <X11/Xatom.h>
 #include <X11/Xutil.h>
+#include <sys/stat.h>
+#include <sys/types.h>
 #ifdef XINERAMA
 #include <X11/extensions/Xinerama.h>
 #endif
@@ -40,6 +44,7 @@ static void readstdin(void);
 static void run(void);
 static void setup(void);
 static void usage(void);
+static void readPathExecutables(void);
 
 static char text[BUFSIZ] = "";
 static int bh, mw, mh;
@@ -64,6 +69,7 @@ static Item *matches, *matchend;
 static Item *prev, *curr, *next, *sel;
 static Window win;
 static XIC xic;
+static Bool pathexecutables = False;
 
 static int (*fstrncmp)(const char *, const char *, size_t) = strncmp;
 static char *(*fstrstr)(const char *, const char *) = strstr;
@@ -81,6 +87,8 @@ main(int argc, char *argv[]) {
         }
         else if(!strcmp(argv[i], "-b"))   /* appears at the bottom of the screen */
             topbar = False;
+        else if(!strcmp(argv[i], "-pe"))  /* scan PATH executables */
+            pathexecutables = True;
         else if(!strcmp(argv[i], "-f"))   /* grabs keyboard before reading stdin */
             fast = True;
         else if(!strcmp(argv[i], "-i")) { /* case-insensitive item matching */
@@ -114,10 +122,17 @@ main(int argc, char *argv[]) {
 
     if(fast) {
         grabkeyboard();
-        readstdin();
-    }
-    else {
-        readstdin();
+        if (pathexecutables) {
+            readPathExecutables();
+        } else {
+            readstdin();
+        }
+    } else {
+        if (pathexecutables) {
+            readPathExecutables();
+        } else {
+            readstdin();
+        }
         grabkeyboard();
     }
     setup();
@@ -617,7 +632,71 @@ setup(void) {
 
 void
 usage(void) {
-    fputs("usage: dmenu [-b] [-f] [-i] [-l lines] [-p prompt] [-fn font]\n"
+    fputs("usage: dmenu [-b] [-f] [-i] [-rp] [-l lines] [-p prompt] [-fn font]\n"
           "             [-nb color] [-nf color] [-sb color] [-sf color] [-v]\n", stderr);
     exit(EXIT_FAILURE);
 }
+
+void
+readPathExecutables() {
+    char *dirNamePtr, *path = getenv("PATH");
+    size_t i = 0, size = 0, max = 0;
+    DIR *dirp = NULL;
+    struct dirent *dp;
+    char fullpath[PATH_MAX], *end, *maxstr = NULL;
+
+    if (path == NULL) {
+        perror("getenv");
+        exit(EXIT_FAILURE);
+    }
+
+    /* split path into directory list */
+    dirNamePtr = strtok(path, ":");
+    while (dirNamePtr != NULL) {
+        printf("Path dir %s\n", dirNamePtr);
+        /* read directory */
+        dirp = opendir(dirNamePtr);
+
+        strcpy(fullpath, dirNamePtr);
+        end = fullpath + strlen(fullpath);
+
+        if (dirp == NULL) {
+            if (errno != ENOENT) {
+                perror("opendir");
+            }
+            continue;
+        }
+        dp = readdir(dirp);
+        while (dp != NULL) {
+            strcat(end, "/");
+            strcpy(end + 1, dp->d_name);
+            struct stat sb;
+            if (!stat(fullpath, &sb) && S_ISREG(sb.st_mode) && sb.st_mode & 0111) {
+                if (i + 1 >= size / sizeof *items) {
+                    if (!(items = realloc(items, (size += BUFSIZ)))) {
+                        eprintf("cannot realloc %u bytes:", (unsigned int)size);
+                        exit(1);
+                    }
+                }
+                if (!(items[i].text = strdup(dp->d_name))) {
+                    eprintf("cannot strdup %u bytes:", (unsigned int)strlen(dp->d_name) + 1);
+                    exit(1);
+                }
+                if (strlen(items[i].text) > max) {
+                    max = strlen(maxstr = items[i].text);
+                }
+                i += 1;
+            }
+            dp = readdir(dirp);
+        }
+        closedir(dirp);
+        dirNamePtr = strtok(NULL, ":");
+    }
+
+    if (items) {
+        items[i].text = NULL;
+    }
+    inputw = maxstr ? textw(dc, maxstr) : 0;
+    lines = MIN(lines, i);
+}
+

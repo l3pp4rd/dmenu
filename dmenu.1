@@ -6,6 +6,7 @@ dmenu \- dynamic menu
 .RB [ \-b ]
 .RB [ \-f ]
 .RB [ \-i ]
+.RB [ \-pe ]
 .RB [ \-l
 .IR lines ]
 .RB [ \-p
@@ -29,11 +30,6 @@ is a dynamic menu for X, which reads a list of newline\-separated items from
 stdin.  When the user selects an item and presses Return, their choice is printed
 to stdout and dmenu terminates.  Entering text will narrow the items to those
 matching the tokens in the input.
-.P
-.B dmenu_run
-is a script used by
-.IR dwm (1)
-which lists programs in the user's $PATH and runs the result in their $SHELL.
 .SH OPTIONS
 .TP
 .B \-b
@@ -45,6 +41,9 @@ X until stdin reaches end\-of\-file.
 .TP
 .B \-i
 dmenu matches menu items case insensitively.
+.TP
+.B \-pe
+read user's $PATH for executables instead of stdin
 .TP
 .BI \-l " lines"
 dmenu lists items vertically, with the given number of lines.
