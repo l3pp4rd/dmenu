@@ -26,6 +26,7 @@
 typedef struct Item Item;
 struct Item {
     char *text;
+    int priority;
     Item *left, *right;
 };
 
@@ -45,6 +46,9 @@ static void run(void);
 static void setup(void);
 static void usage(void);
 static void readPathExecutables(void);
+static void readHistoryItems(const char *file);
+static int sortByHist(const void *a, const void *b);
+static void checkHistItemPriority(Item *item);
 
 static char text[BUFSIZ] = "";
 static int bh, mw, mh;
@@ -70,6 +74,9 @@ static Item *prev, *curr, *next, *sel;
 static Window win;
 static XIC xic;
 static Bool pathexecutables = False;
+static Item *hitems; /* history items */
+static const char *history_file = NULL;
+static int num_items = 0;
 
 static int (*fstrncmp)(const char *, const char *, size_t) = strncmp;
 static char *(*fstrstr)(const char *, const char *) = strstr;
@@ -112,6 +119,8 @@ main(int argc, char *argv[]) {
             selbgcolor = argv[++i];
         else if(!strcmp(argv[i], "-sf"))  /* selected foreground color */
             selfgcolor = argv[++i];
+        else if(!strcmp(argv[i], "-hf"))  /* priority history file */
+            history_file = argv[++i];
         else
             usage();
 
@@ -119,6 +128,11 @@ main(int argc, char *argv[]) {
     initfont(dc, font ? font : DEFFONT);
     normcol = initcolor(dc, normfgcolor, normbgcolor);
     selcol = initcolor(dc, selfgcolor, selbgcolor);
+
+    /* read history file if set */
+    if (history_file) {
+        readHistoryItems(history_file);
+    }
 
     if(fast) {
         grabkeyboard();
@@ -134,6 +148,10 @@ main(int argc, char *argv[]) {
             readstdin();
         }
         grabkeyboard();
+    }
+    /* sort by historical priority */
+    if (items && history_file) {
+        qsort(items, num_items, sizeof(struct Item), sortByHist);
     }
     setup();
     run();
@@ -515,11 +533,15 @@ readstdin(void) {
             eprintf("cannot strdup %u bytes:", strlen(buf)+1);
         if(strlen(items[i].text) > max)
             max = strlen(maxstr = items[i].text);
+        items[i].priority = 0;
+        checkHistItemPriority(&items[i]);
+
     }
     if(items)
         items[i].text = NULL;
     inputw = maxstr ? textw(dc, maxstr) : 0;
     lines = MIN(lines, i);
+    num_items = i;
 }
 
 void
@@ -633,7 +655,8 @@ setup(void) {
 void
 usage(void) {
     fputs("usage: dmenu [-b] [-f] [-i] [-rp] [-l lines] [-p prompt] [-fn font]\n"
-          "             [-nb color] [-nf color] [-sb color] [-sf color] [-v]\n", stderr);
+          "             [-nb color] [-nf color] [-sb color] [-sf color]\n"
+          "             [-hf history file] [-v]\n", stderr);
     exit(EXIT_FAILURE);
 }
 
@@ -653,7 +676,6 @@ readPathExecutables() {
     /* split path into directory list */
     dirNamePtr = strtok(path, ":");
     while (dirNamePtr != NULL) {
-        printf("Path dir %s\n", dirNamePtr);
         /* read directory */
         dirp = opendir(dirNamePtr);
 
@@ -671,20 +693,23 @@ readPathExecutables() {
             strcat(end, "/");
             strcpy(end + 1, dp->d_name);
             struct stat sb;
+            /* @TODO improve file check */
             if (!stat(fullpath, &sb) && S_ISREG(sb.st_mode) && sb.st_mode & 0111) {
                 if (i + 1 >= size / sizeof *items) {
                     if (!(items = realloc(items, (size += BUFSIZ)))) {
                         eprintf("cannot realloc %u bytes:", (unsigned int)size);
-                        exit(1);
+                        exit(EXIT_FAILURE);
                     }
                 }
                 if (!(items[i].text = strdup(dp->d_name))) {
                     eprintf("cannot strdup %u bytes:", (unsigned int)strlen(dp->d_name) + 1);
-                    exit(1);
+                    exit(EXIT_FAILURE);
                 }
                 if (strlen(items[i].text) > max) {
                     max = strlen(maxstr = items[i].text);
                 }
+                items[i].priority = 0;
+                checkHistItemPriority(&items[i]);
                 i += 1;
             }
             dp = readdir(dirp);
@@ -698,5 +723,60 @@ readPathExecutables() {
     }
     inputw = maxstr ? textw(dc, maxstr) : 0;
     lines = MIN(lines, i);
+    num_items = i;
+}
+
+void
+readHistoryItems(const char *file) {
+    FILE *in;
+    char buf[BUFSIZ], *pch, *p;
+    size_t i, size = 0;
+
+    in = fopen(file, "r");
+    if (!in) {
+        perror("fopen");
+        return;
+    }
+
+    for (i = 0; fgets(buf, sizeof buf, in); i++) {
+        if (i+1 >= size / sizeof *hitems) {
+            if (!(hitems = realloc(hitems, (size += BUFSIZ)))) {
+                eprintf("cannot realloc %u bytes:", (unsigned int)size);
+                exit(EXIT_FAILURE);
+            }
+        }
+        if ((p = strchr(buf, '\n'))) {
+            *p = '\0';
+        }
+        pch = strtok(buf, "@");
+        if (pch != NULL) {
+            if (!(hitems[i].text = strdup(pch))) {
+                eprintf("cannot strdup %u bytes:", (unsigned int)strlen(pch)+1);
+                exit(EXIT_FAILURE);
+            }
+            hitems[i].priority = atoi(strtok(NULL, "@"));
+        }
+    }
+    if (hitems) {
+        hitems[i].text = NULL;
+    }
+}
+
+void
+checkHistItemPriority(Item *item) {
+    Item *hitem;
+    for (hitem = hitems; hitem && hitem->text; hitem++) {
+        if (!strcmp(hitem->text, item->text)) {
+            item->priority = hitem->priority;
+            return;
+        }
+    }
+}
+
+int
+sortByHist(const void *a, const void *b) {
+    struct Item *ia = (struct Item *)a;
+    struct Item *ib = (struct Item *)b;
+    return ib->priority - ia->priority;
 }
 
