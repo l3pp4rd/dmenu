@@ -9,9 +9,6 @@
 
 #define MAX(a, b)  ((a) > (b) ? (a) : (b))
 #define MIN(a, b)  ((a) < (b) ? (a) : (b))
-#define DEFAULTFN  "fixed"
-
-static Bool loadfont(DC *dc, const char *fontstr);
 
 void
 drawrect(DC *dc, int x, int y, unsigned int w, unsigned int h, Bool fill, unsigned long color) {
@@ -23,7 +20,7 @@ drawrect(DC *dc, int x, int y, unsigned int w, unsigned int h, Bool fill, unsign
 }
 
 void
-drawtext(DC *dc, const char *text, unsigned long col[ColLast]) {
+drawtext(DC *dc, const char *text, ColorSet *col) {
 	char buf[BUFSIZ];
 	size_t mn, n = strlen(text);
 
@@ -35,19 +32,24 @@ drawtext(DC *dc, const char *text, unsigned long col[ColLast]) {
 	if(mn < n)
 		for(n = MAX(mn-3, 0); n < mn; buf[n++] = '.');
 
-	drawrect(dc, 0, 0, dc->w, dc->h, True, BG(dc, col));
+	drawrect(dc, 0, 0, dc->w, dc->h, True, col->BG);
 	drawtextn(dc, buf, mn, col);
 }
 
 void
-drawtextn(DC *dc, const char *text, size_t n, unsigned long col[ColLast]) {
+drawtextn(DC *dc, const char *text, size_t n, ColorSet *col) {
 	int x = dc->x + dc->font.height/2;
 	int y = dc->y + dc->font.ascent+1;
 
-	XSetForeground(dc->dpy, dc->gc, FG(dc, col));
-	if(dc->font.set)
+	XSetForeground(dc->dpy, dc->gc, col->FG);
+	if(dc->font.xft_font) {
+		if (!dc->xftdraw)
+			eprintf("error, xft drawable does not exist");
+		XftDrawStringUtf8(dc->xftdraw, &col->FG_xft,
+			dc->font.xft_font, x, y, (unsigned char*)text, n);
+	} else if(dc->font.set) {
 		XmbDrawString(dc->dpy, dc->canvas, dc->font.set, dc->gc, x, y, text, n);
-	else {
+	} else {
 		XSetFont(dc->dpy, dc->gc, dc->font.xfont->fid);
 		XDrawString(dc->dpy, dc->canvas, dc->gc, x, y, text, n);
 	}
@@ -69,16 +71,33 @@ eprintf(const char *fmt, ...) {
 }
 
 void
+freecol(DC *dc, ColorSet *col) {
+    if(col) {
+        if(&col->FG_xft)
+            XftColorFree(dc->dpy, DefaultVisual(dc->dpy, DefaultScreen(dc->dpy)),
+                DefaultColormap(dc->dpy, DefaultScreen(dc->dpy)), &col->FG_xft);
+        free(col); 
+    }
+}
+
+void
 freedc(DC *dc) {
+    if(dc->font.xft_font) {
+        XftFontClose(dc->dpy, dc->font.xft_font);
+        XftDrawDestroy(dc->xftdraw);
+    }
 	if(dc->font.set)
 		XFreeFontSet(dc->dpy, dc->font.set);
-	if(dc->font.xfont)
+    if(dc->font.xfont)
 		XFreeFont(dc->dpy, dc->font.xfont);
-	if(dc->canvas)
+    if(dc->canvas)
 		XFreePixmap(dc->dpy, dc->canvas);
-	XFreeGC(dc->dpy, dc->gc);
-	XCloseDisplay(dc->dpy);
-	free(dc);
+	if(dc->gc)
+        XFreeGC(dc->dpy, dc->gc);
+	if(dc->dpy)
+        XCloseDisplay(dc->dpy);
+	if(dc)
+        free(dc);
 }
 
 unsigned long
@@ -89,6 +108,20 @@ getcolor(DC *dc, const char *colstr) {
 	if(!XAllocNamedColor(dc->dpy, cmap, colstr, &color, &color))
 		eprintf("cannot allocate color '%s'\n", colstr);
 	return color.pixel;
+}
+
+ColorSet *
+initcolor(DC *dc, const char * foreground, const char * background) {
+	ColorSet * col = (ColorSet *)malloc(sizeof(ColorSet));
+	if(!col)
+		eprintf("error, cannot allocate memory for color set");
+	col->BG = getcolor(dc, background);
+	col->FG = getcolor(dc, foreground);
+	if(dc->font.xft_font)
+		if(!XftColorAllocName(dc->dpy, DefaultVisual(dc->dpy, DefaultScreen(dc->dpy)),
+			DefaultColormap(dc->dpy, DefaultScreen(dc->dpy)), foreground, &col->FG_xft))
+			eprintf("error, cannot allocate xft font color '%s'\n", foreground);
+	return col;
 }
 
 DC *
@@ -109,39 +142,33 @@ initdc(void) {
 
 void
 initfont(DC *dc, const char *fontstr) {
-	if(!loadfont(dc, fontstr ? fontstr : DEFAULTFN)) {
-		if(fontstr != NULL)
-			fprintf(stderr, "cannot load font '%s'\n", fontstr);
-		if(fontstr == NULL || !loadfont(dc, DEFAULTFN))
-			eprintf("cannot load font '%s'\n", DEFAULTFN);
-	}
-	dc->font.height = dc->font.ascent + dc->font.descent;
-}
-
-Bool
-loadfont(DC *dc, const char *fontstr) {
 	char *def, **missing, **names;
 	int i, n;
 	XFontStruct **xfonts;
 
-	if(!*fontstr)
-		return False;
-	if((dc->font.set = XCreateFontSet(dc->dpy, fontstr, &missing, &n, &def))) {
+	missing = NULL;
+	if((dc->font.xfont = XLoadQueryFont(dc->dpy, fontstr))) {
+		dc->font.ascent = dc->font.xfont->ascent;
+		dc->font.descent = dc->font.xfont->descent;
+		dc->font.width   = dc->font.xfont->max_bounds.width;
+	} else if((dc->font.set = XCreateFontSet(dc->dpy, fontstr, &missing, &n, &def))) {
 		n = XFontsOfFontSet(dc->font.set, &xfonts, &names);
 		for(i = 0; i < n; i++) {
 			dc->font.ascent  = MAX(dc->font.ascent,  xfonts[i]->ascent);
 			dc->font.descent = MAX(dc->font.descent, xfonts[i]->descent);
 			dc->font.width   = MAX(dc->font.width,   xfonts[i]->max_bounds.width);
 		}
-	}
-	else if((dc->font.xfont = XLoadQueryFont(dc->dpy, fontstr))) {
-		dc->font.ascent  = dc->font.xfont->ascent;
-		dc->font.descent = dc->font.xfont->descent;
-		dc->font.width   = dc->font.xfont->max_bounds.width;
+	} else if((dc->font.xft_font = XftFontOpenName(dc->dpy, DefaultScreen(dc->dpy), fontstr))) {
+		dc->font.ascent = dc->font.xft_font->ascent;
+		dc->font.descent = dc->font.xft_font->descent;
+		dc->font.width = dc->font.xft_font->max_advance_width;
+	} else {
+		eprintf("cannot load font '%s'\n", fontstr);
 	}
 	if(missing)
 		XFreeStringList(missing);
-	return dc->font.set || dc->font.xfont;
+	dc->font.height = dc->font.ascent + dc->font.descent;
+	return;
 }
 
 void
@@ -151,20 +178,29 @@ mapdc(DC *dc, Window win, unsigned int w, unsigned int h) {
 
 void
 resizedc(DC *dc, unsigned int w, unsigned int h) {
+	int screen = DefaultScreen(dc->dpy);
 	if(dc->canvas)
 		XFreePixmap(dc->dpy, dc->canvas);
 
 	dc->w = w;
 	dc->h = h;
 	dc->canvas = XCreatePixmap(dc->dpy, DefaultRootWindow(dc->dpy), w, h,
-	                           DefaultDepth(dc->dpy, DefaultScreen(dc->dpy)));
+	                           DefaultDepth(dc->dpy, screen));
+	if(dc->font.xft_font && !(dc->xftdraw)) {
+		dc->xftdraw = XftDrawCreate(dc->dpy, dc->canvas, DefaultVisual(dc->dpy,screen), DefaultColormap(dc->dpy,screen));
+		if(!(dc->xftdraw))
+			eprintf("error, cannot create xft drawable\n");
+	}
 }
 
 int
 textnw(DC *dc, const char *text, size_t len) {
-	if(dc->font.set) {
+	if(dc->font.xft_font) {
+		XGlyphInfo gi;
+		XftTextExtentsUtf8(dc->dpy, dc->font.xft_font, (const FcChar8*)text, len, &gi);
+		return gi.width;
+	} else if(dc->font.set) {
 		XRectangle r;
-
 		XmbTextExtents(dc->font.set, text, len, NULL, &r);
 		return r.width;
 	}
