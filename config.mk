@@ -1,9 +1,9 @@
 # dmenu version, configured for archlinux
 VERSION = 4.5-gedi
 
-# paths ~/.dotfiles
-PREFIX = /home/gedi/.dotfiles
-MANPREFIX = ${PREFIX}/man
+# paths
+PREFIX = /usr/local
+MANPREFIX = ${PREFIX}/share/man
 
 X11INC = /usr/include/X11
 X11LIB = /usr/lib/X11

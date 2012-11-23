@@ -49,6 +49,7 @@ static void readPathExecutables(void);
 static void readHistoryItems(const char *file);
 static int sortByHist(const void *a, const void *b);
 static void checkHistItemPriority(Item *item);
+static void incHistoricalHits(char *text);
 
 static char text[BUFSIZ] = "";
 static int bh, mw, mh;
@@ -412,6 +413,9 @@ keypress(XKeyEvent *ev) {
     case XK_Return:
     case XK_KP_Enter:
         puts((sel && !(ev->state & ShiftMask)) ? sel->text : text);
+        if (history_file) {
+            incHistoricalHits((sel && !(ev->state & ShiftMask)) ? sel->text : text);
+        }
         ret = EXIT_SUCCESS;
         running = False;
     case XK_Right:
@@ -654,7 +658,7 @@ setup(void) {
 
 void
 usage(void) {
-    fputs("usage: dmenu [-b] [-f] [-i] [-rp] [-l lines] [-p prompt] [-fn font]\n"
+    fputs("usage: dmenu [-b] [-f] [-i] [-pe] [-l lines] [-p prompt] [-fn font]\n"
           "             [-nb color] [-nf color] [-sb color] [-sf color]\n"
           "             [-hf history file] [-v]\n", stderr);
     exit(EXIT_FAILURE);
@@ -668,6 +672,8 @@ readPathExecutables() {
     struct dirent *dp;
     char fullpath[PATH_MAX], *end, *maxstr = NULL;
 
+    /* actually all read executables can be cached,
+     * but on my machine its not a problem at all */
     if (path == NULL) {
         perror("getenv");
         exit(EXIT_FAILURE);
@@ -693,7 +699,6 @@ readPathExecutables() {
             strcat(end, "/");
             strcpy(end + 1, dp->d_name);
             struct stat sb;
-            /* @TODO improve file check */
             if (!stat(fullpath, &sb) && S_ISREG(sb.st_mode) && sb.st_mode & 0111) {
                 if (i + 1 >= size / sizeof *items) {
                     if (!(items = realloc(items, (size += BUFSIZ)))) {
@@ -734,8 +739,7 @@ readHistoryItems(const char *file) {
 
     in = fopen(file, "r");
     if (!in) {
-        perror("fopen");
-        return;
+        return; /* no history file yet, will generate */
     }
 
     for (i = 0; fgets(buf, sizeof buf, in); i++) {
@@ -778,5 +782,29 @@ sortByHist(const void *a, const void *b) {
     struct Item *ia = (struct Item *)a;
     struct Item *ib = (struct Item *)b;
     return ib->priority - ia->priority;
+}
+
+void
+incHistoricalHits(char *text) {
+    FILE *out;
+    Item *hitem;
+    int written = 0;
+
+    out = fopen(history_file, "w");
+    if (!out) {
+        perror("fopen");
+        exit(EXIT_FAILURE);
+    }
+    for (hitem = hitems; hitem && hitem->text; hitem++) {
+        if (!strcmp(hitem->text, text)) {
+            hitem->priority += 1;
+            written = 1;
+        }
+        fprintf(out, "%s@%d\n", hitem->text, hitem->priority);
+    }
+    if (!written) {
+        fprintf(out, "%s@%d\n", text, 1);
+    }
+    fclose(out);
 }
 
