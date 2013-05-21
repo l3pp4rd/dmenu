@@ -7,6 +7,8 @@ dmenu \- dynamic menu
 .RB [ \-f ]
 .RB [ \-i ]
 .RB [ \-pe ]
+.RB [ \-hf
+.IR history-file ]
 .RB [ \-l
 .IR lines ]
 .RB [ \-p
@@ -44,6 +46,9 @@ dmenu matches menu items case insensitively.
 .TP
 .B \-pe
 read user's $PATH for executables instead of stdin
+.TP
+.BI \-hf " history-file"
+specify history file, which will sort results by mostly used on top
 .TP
 .BI \-l " lines"
 dmenu lists items vertically, with the given number of lines.
