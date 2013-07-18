@@ -48,6 +48,7 @@ static void usage(void);
 static void readPathExecutables(void);
 static void readHistoryItems(const char *file);
 static int sortByHist(const void *a, const void *b);
+static int isDuplicate(const char *text);
 static void checkHistItemPriority(Item *item);
 static void incHistoricalHits(char *text);
 
@@ -700,22 +701,24 @@ readPathExecutables() {
             strcpy(end + 1, dp->d_name);
             struct stat sb;
             if (!stat(fullpath, &sb) && S_ISREG(sb.st_mode) && sb.st_mode & 0111) {
-                if (i + 1 >= size / sizeof *items) {
-                    if (!(items = realloc(items, (size += BUFSIZ)))) {
-                        eprintf("cannot realloc %u bytes:", (unsigned int)size);
+                if (!isDuplicate(dp->d_name)) {
+                    if (i + 1 >= size / sizeof *items) {
+                        if (!(items = realloc(items, (size += BUFSIZ)))) {
+                            eprintf("cannot realloc %u bytes:", (unsigned int)size);
+                            exit(EXIT_FAILURE);
+                        }
+                    }
+                    if (!(items[i].text = strdup(dp->d_name))) {
+                        eprintf("cannot strdup %u bytes:", (unsigned int)strlen(dp->d_name) + 1);
                         exit(EXIT_FAILURE);
                     }
+                    if (strlen(items[i].text) > max) {
+                        max = strlen(maxstr = items[i].text);
+                    }
+                    items[i].priority = 0;
+                    checkHistItemPriority(&items[i]);
+                    i += 1;
                 }
-                if (!(items[i].text = strdup(dp->d_name))) {
-                    eprintf("cannot strdup %u bytes:", (unsigned int)strlen(dp->d_name) + 1);
-                    exit(EXIT_FAILURE);
-                }
-                if (strlen(items[i].text) > max) {
-                    max = strlen(maxstr = items[i].text);
-                }
-                items[i].priority = 0;
-                checkHistItemPriority(&items[i]);
-                i += 1;
             }
             dp = readdir(dirp);
         }
@@ -764,6 +767,17 @@ readHistoryItems(const char *file) {
     if (hitems) {
         hitems[i].text = NULL;
     }
+}
+
+int
+isDuplicate(const char *text) {
+    Item *item;
+    for (item = items; item && item->text; item++) {
+        if (!strcmp(item->text, text)) {
+            return 1;
+        }
+    }
+    return 0;
 }
 
 void
