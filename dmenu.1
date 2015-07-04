@@ -5,12 +5,32 @@ dmenu \- dynamic menu
 .B dmenu
 .RB [ \-b ]
 .RB [ \-f ]
+.RB [ \-r ]
 .RB [ \-i ]
-.RB [ \-pe ]
-.RB [ \-hf
-.IR history-file ]
+.RB [ \-z ]
+.RB [ \-t ]
+.RB [ \-mask ]
+.RB [ \-noinput ]
+.RB [ \-s
+.IR screen ]
+.RB [ \-name
+.IR name ]
+.RB [ \-class
+.IR class ]
+.RB [ \-o
+.IR opacity ]
+.RB [ \-dim
+.IR opacity ]
+.RB [ \-dc 
+.IR color ]
 .RB [ \-l
 .IR lines ]
+.RB [ \-h
+.IR height ]
+.RB [ \-uh
+.IR height ]
+.RB [ \-w
+.IR width ]
 .RB [ \-p
 .IR prompt ]
 .RB [ \-fn
@@ -23,6 +43,10 @@ dmenu \- dynamic menu
 .IR color ]
 .RB [ \-sf
 .IR color ]
+.RC [ \-uc
+.IR color ]
+.RB [ \-hist
+.IR "<filename>" ]
 .RB [ \-v ]
 .P
 .BR dmenu_run " ..."
@@ -32,32 +56,87 @@ is a dynamic menu for X, which reads a list of newline\-separated items from
 stdin.  When the user selects an item and presses Return, their choice is printed
 to stdout and dmenu terminates.  Entering text will narrow the items to those
 matching the tokens in the input.
+.P
+.B dmenu_run
+is a script used by
+.IR dwm (1)
+which lists programs in the user's $PATH and runs the result in their $SHELL.
 .SH OPTIONS
 .TP
 .B \-b
 dmenu appears at the bottom of the screen.
 .TP
+.B \-q
+dmenu will not show any items if the search string is empty.
+.TP
 .B \-f
 dmenu grabs the keyboard before reading stdin.  This is faster, but will lock up
 X until stdin reaches end\-of\-file.
 .TP
+.B \-r 
+activates filter mode. All matching items currently shown in the list will be
+selected, starting with the item that is highlighted and wrapping around to the
+beginning of the list. 
+.TP 
 .B \-i
 dmenu matches menu items case insensitively.
 .TP
-.B \-pe
-read user's $PATH for executables instead of stdin
+.B \-z
+dmenu uses fuzzy matching. It matches items that have all characters entered, in sequence they are
+entered, but there may be any number of characters between matched characters.
+For example it takes "txt" makes it to "*t*x*t" glob pattern and checks if it
+matches.
 .TP
-.BI \-hf " history-file"
-specify history file, which will sort results by mostly used on top
+.B \-t
+dmenu uses space\-separated tokens to match menu items. Using this overrides -z option.
+.TP
+.B \-mask
+dmenu masks input with asterisk characters (*).
+.TP
+.B \-noinput
+dmenu ignores input from stdin (equivalent to: echo | dmenu).
+.TP
+.BI \-s " screen"
+dmenu apears on the specified screen number. Number given corespondes to screen number in X configuration.
+.TP
+.BI \-name " name"
+defines window name for dmenu. Defaults to "dmenu".
+.TP
+.BI \-class " class"
+defines window class for dmenu. Defaults to "Dmenu".
+.TP
+.BI \-o " opacity"
+defines window opacity for dmenu. Defaults to 1.0.
+.TP
+.BI \-dim " opacity"
+enables screen dimming when dmenu appers. Takes dim opacity as argument.
+.TP 
+.BI \-dc " color"
+defines color of screen dimming. Active only when -dim in effect. Defautls to black (#000000)
 .TP
 .BI \-l " lines"
 dmenu lists items vertically, with the given number of lines.
+.TP
+.BI \-h " height"
+defines the height of the bar in pixels.
+.TP
+.BI \-uh " height"
+defines the height of the underline in pixels.
 .TP
 .BI \-p " prompt"
 defines the prompt to be displayed to the left of the input field.
 .TP
 .BI \-fn " font"
 defines the font or font set used. eg. "fixed" or "Monospace-12:normal" (an xft font)
+.TP
+.BI \-x " xoffset"
+defines the offset from the left border of the screen.
+.TP
+.BI \-y " yoffset"
+defines the offset from the top border of the screen.
+.TP
+.BI \-w " width"
+defines the desired menu window width.
 .TP
 .BI \-nb " color"
 defines the normal background color.
@@ -73,6 +152,12 @@ defines the selected background color.
 .TP
 .BI \-sf " color"
 defines the selected foreground color.
+.TP
+.BI \-uc " color"
+defines the underline color.
+.TP
+.BI \-hist " <histfile>"
+the file to use for history
 .TP
 .B \-v
 prints version information to stdout, then exits.

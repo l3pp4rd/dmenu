@@ -1,0 +1,9 @@
+#!/bin/sh
+
+PROJECT_DIR=$HOME/.tmuxstart
+if [ -d "$PROJECT_DIR" ]; then
+  PROJECT=$(dmenu_app $PROJECT_DIR workspace -fl)
+  if [ ! -z "$PROJECT" ]; then
+    (ls -1 $PROJECT_DIR | grep -q $PROJECT) && (tmuxstart $PROJECT)
+  fi
+fi

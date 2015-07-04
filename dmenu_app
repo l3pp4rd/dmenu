@@ -1,0 +1,33 @@
+#!/bin/sh
+
+# Scans a $1 or $PATH directory and uses $OPTS or $3 to filter files.
+# Pushes results to dmenu.
+# a $2 or $CACHE_HITS_FILE is used to increase hit counter so the $SCAN
+# results could be sorted by most hits. After the $APP
+# is chosen from dmenu, then it stores a hit into $HIT_COUNTS
+# and echoes $APP
+
+FONT="Inconsolata-16"
+SCAN="${1:-$PATH}"
+CACHE_HITS_FILE="${2:-"dmenu_app"}"
+OPTS=${3:-'-flx'}
+HIT_COUNTS="${XDG_CACHE_HOME:-"$HOME/.cache"}/$CACHE_HITS_FILE"
+
+mkdir -p $(dirname $HIT_COUNTS)
+touch $HIT_COUNTS
+
+HITS=$(sort -t';' -k2,2r $HIT_COUNTS | awk -F';' '{print $1}')
+APP=$(
+  IFS=:
+  (echo $HITS; (echo $HITS; stest $OPTS $SCAN) | sort | uniq -u) | dmenu \
+    -nb '#002b36' -nf '#839496' -sb '#073642' -sf '#cb4b16' \
+    -fn $FONT -i -p "Run"
+)
+
+NM=$(cat $HIT_COUNTS | grep "^$APP;[0-9+]$" | awk -F';' '{print $2}')
+if [ -z "$NM" ]; then
+  echo "$APP;1" >> $HIT_COUNTS
+else
+  sed -i "s/$APP;$NM/$APP;`expr $NM + 1`/" $HIT_COUNTS
+fi
+echo $APP

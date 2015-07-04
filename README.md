@@ -3,11 +3,12 @@
 dmenu is an efficient dynamic menu for X. And originally developed by [suckless.org](http://dwm.suckless.org)
 engineers.
 
-This fork is for custom personal use and includes extra features like:
+This fork is patched with XFT, focus, fuzzymatch, opacity and other patches.
+It also includes extra features like:
 
-- **XFT** support.
-- **PATH** executable scan as an option.
-- Historical hit based sorting through option.
+- **dmenu_app** executable, which solarizes dmenu and sorts results by most hits.
+- **dmenu_run** uses **dmenu_app** to find executable and run it.
+- **dmenu_workspace**
 
 ## Screenshot
 
@@ -15,7 +16,7 @@ This fork is for custom personal use and includes extra features like:
 
 ## Requirements
 
-In order to build dmenu you need the Xlib header files.
+In order to build dmenu you need the Xlib header files. See **config.mk** for details.
 
 ## Installation
 

@@ -1,0 +1,4 @@
+#!/bin/sh
+
+APP=$(dmenu_app)
+(command -v "$APP" >/dev/null 2>&1) && ($APP | ${SHELL:-"/bin/sh"})

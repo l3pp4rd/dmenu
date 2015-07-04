@@ -39,7 +39,7 @@ drawtext(DC *dc, const char *text, ColorSet *col) {
 void
 drawtextn(DC *dc, const char *text, size_t n, ColorSet *col) {
 	int x = dc->x + dc->font.height/2;
-	int y = dc->y + dc->font.ascent+1;
+	int y = dc->y + dc->font.ascent + (dc->h - dc->font.height)/2;
 
 	XSetForeground(dc->dpy, dc->gc, col->FG);
 	if(dc->font.xft_font) {
