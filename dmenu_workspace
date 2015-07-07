@@ -1,9 +1,15 @@
 #!/bin/sh
 
+# Switch to $WORKSPACE with dmenu using tmuxstart https://github.com/treyhunner/tmuxstart
+
 PROJECT_DIR=$HOME/.tmuxstart
-if [ -d "$PROJECT_DIR" ]; then
-  PROJECT=$(dmenu_app $PROJECT_DIR workspace -fl)
-  if [ ! -z "$PROJECT" ]; then
-    (ls -1 $PROJECT_DIR | grep -q $PROJECT) && (tmuxstart $PROJECT)
-  fi
+FONT="Inconsolata-16"
+WORKSPACE=$(
+  stest -fl $PROJECT_DIR | dmenu \
+    -nb '#002b36' -nf '#839496' -sb '#073642' -sf '#cb4b16' \
+    -fn $FONT -i -p "Workspace"
+)
+
+if [ ! -z "$WORKSPACE" ]; then
+  (ls -1 $PROJECT_DIR | grep -q "$WORKSPACE") && (tmuxstart $WORKSPACE)
 fi
