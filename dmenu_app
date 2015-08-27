@@ -20,7 +20,7 @@ APP=$(
     -fn $FONT -i -p "Run"
 )
 (command -v "$APP" >/dev/null 2>&1) && (
-  NM=$(grep "^$APP;[0-9+]$" $HIT_STORE | awk -F';' '{print $2}')
+  NM=$(grep "^$APP;[[:digit:]]" $HIT_STORE | awk -F';' '{print $2}')
   if [ -z "$NM" ]; then
     echo "$APP;1" >> $HIT_STORE
   else
