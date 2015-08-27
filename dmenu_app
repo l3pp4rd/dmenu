@@ -12,18 +12,19 @@ HIT_STORE="${XDG_CACHE_HOME:-"$HOME/.cache"}/dmenu_app"
 mkdir -p $(dirname $HIT_STORE)
 touch $HIT_STORE
 
-HITS=$(sort -t';' -k2,2r $HIT_STORE | awk -F';' '{print $1}' | awk 'NF > 0')
+HITS=$(sort -u -t';' -k2,2nr -k1,1 $HIT_STORE | sort -u -t';' -k1,1 | awk -F';' '{print $1}' | awk 'NF > 0')
 DIRS=$(echo $PATH | sed 's/:/ /g')
 APP=$(
   (printf "$HITS\n"; (printf "$HITS\n"; stest -flx $DIRS) | sort | uniq -u) | dmenu \
     -nb '#002b36' -nf '#839496' -sb '#073642' -sf '#cb4b16' \
     -fn $FONT -i -p "Run"
 )
-
-NM=$(grep "^$APP;[0-9+]$" $HIT_STORE | awk -F';' '{print $2}')
-if [ -z "$NM" ]; then
-  echo "$APP;1" >> $HIT_STORE
-else
-  sed -i "s/$APP;$NM/$APP;`expr $NM + 1`/" $HIT_STORE
-fi
+(command -v "$APP" >/dev/null 2>&1) && (
+  NM=$(grep "^$APP;[0-9+]$" $HIT_STORE | awk -F';' '{print $2}')
+  if [ -z "$NM" ]; then
+    echo "$APP;1" >> $HIT_STORE
+  else
+    sed -i "s/$APP;$NM/$APP;`expr $NM + 1`/" $HIT_STORE
+  fi
+)
 echo $APP
