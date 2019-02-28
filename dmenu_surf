@@ -1,0 +1,23 @@
+#!/bin/sh
+
+STORE=$1 # and argument may provide a new bookmark url
+
+BOOKMARK_DIR=$HOME/.surf/bookmarks
+mkdir -p $BOOKMARK_DIR
+
+FONT="Inconsolata-16"
+BM=$(
+  find $BOOKMARK_DIR -type f | sed "s|^$BOOKMARK_DIR/||" | dmenu \
+    -nb '#002b36' -nf '#839496' -sb '#073642' -sf '#cb4b16' \
+    -fn $FONT -i -p "Bookmark"
+)
+
+DEST=$BOOKMARK_DIR/$BM
+echo $DEST
+
+if [ -f "$DEST" ]; then
+  surf $(cat $DEST)
+elif [ ! -z "$STORE" ]; then
+  mkdir -p $(dirname $DEST)
+  echo $STORE > $DEST
+fi
